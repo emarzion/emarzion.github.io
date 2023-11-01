@@ -20,7 +20,7 @@ This post details my efforts to construct a formally verified endgame tablebase 
 
 For many types of games, [endgame tablebases](https://en.wikipedia.org/wiki/Endgame_tablebase) are capable of determining if certain positions are won by a player or drawn, as well as how long it takes for the winning player to achieve victory assuming perfect play by both sides (this is typically known as depth to mate or DTM).  First conceived by Richard Bellman in 1965, the idea behind the construction (known as retrograde analysis) has most successfully been applied to the study of chess endgames, where it has revolutionized players' understandings of various classes of endgame positions.
 
-Formally verified endgame tablebases were first investigated by Joe Hurd in [_Formal Verification of Chess Endgame Databases_](https://www.gilith.com/papers/chess.pdf), where he constructed endgame tablebases for chess using [HOL4](https://en.wikipedia.org/wiki/HOL_(proof_assistant)) equipped with a [BDD](https://en.wikipedia.org/wiki/Binary_decision_diagram) engine.  For this project, we investigated how to write a tablebase generator in Coq using an unabashed dependently-typed style, using codata to express things like draws and strategies.
+Formally verified endgame tablebases were first investigated by Joe Hurd in [_Formal Verification of Chess Endgame Databases_](https://www.gilith.com/papers/chess.pdf), where he constructed endgame tablebases for chess using [HOL4](https://en.wikipedia.org/wiki/HOL_(proof_assistant)) equipped with a [BDD](https://en.wikipedia.org/wiki/Binary_decision_diagram) engine.  For this project, we investigated how to write a tablebase generator in Coq using an unabashedly dependently-typed style, using codata to express things like draws and strategies.
 
 # Retrograde analysis
 
@@ -153,13 +153,17 @@ Inductive win {G : Game} (p : Player) : GameState G -> Type :=
   | atom_win : forall b,
       atomic_res b = Some (Win p) ->
       win p b
-  (* if it is the winning player's turn, they need to select one move and have a winning strategy for the resulting position *)
+  (* if it is the winning player's turn, they need to
+     select one move and have a winning strategy for
+     the resulting position *)
   | eloise_win : forall b,
       atomic_res b = None ->
       to_play b = p ->
       forall m, win p (exec_move b m) ->
       win p b
-  (* if it is the losing player's turn, the winning player needs a winning strategy for any move their opponent makes *)
+  (* if it is the losing player's turn, the winning
+     player needs a winning strategy for any move
+     their opponent makes *)
   | abelard_win : forall b,
       atomic_res b = None ->
       to_play b = opp p ->
@@ -182,14 +186,16 @@ Fixpoint depth {G} {p} {s : GameState G} (w : win p s) : nat :=
 From there, the definition of a smallest win is standard:
 
 ```coq
-Definition minimal {G} {p} {s : GameState G} (w : win p s) : Prop :=
+Definition minimal {G} {p} {s : GameState G}
+  (w : win p s) : Prop :=
   forall (w' : win p s), depth w <= depth w'.
 ```
 
 and finally, our definition of DTM:
 
 ```coq
-Definition mate {G} (p : Player) (s : GameState G) (n : nat) : Type :=
+Definition mate {G} (p : Player) (s : GameState G)
+  (n : nat) : Type :=
   { w : win p s & depth w = n /\ minimal w }.
 ```
 
@@ -197,15 +203,21 @@ Onward to draws.  It might seem natural to simply define draws as positions that
 
 ```coq
 CoInductive draw {G : Game} : GameState G -> Type :=
-  (* an atomic case, representing things like stalemates in chess *)
+  (* an atomic case, representing things
+     like stalemates in chess *)
   | atom_draw : forall s,
       atomic_res s = Some Draw ->
       draw s
-  (* if there is at least one move that leads to a drawn position, and every move leads to either a drawn position or a lost position for current player, then the position is drawn *)
+  (* if there is at least one move that
+     leads to a drawn position, and every
+     move leads to either a drawn position
+    or a lost position for current player,
+    then the position is drawn *)
   | play_draw : forall s p,
       to_play s = p ->
       atomic_res s = None ->
-      (forall m, draw (exec_move s m) + win (opp p) (exec_move s m)) ->
+      (forall m, draw (exec_move s m)
+      + win (opp p) (exec_move s m)) ->
       forall m, draw (exec_move s m) ->
       draw s.
 ```
@@ -213,15 +225,20 @@ CoInductive draw {G : Game} : GameState G -> Type :=
 Finally, we would like a neutral type that represents an arbitrary player (could be winning, losing, drawn, or unknown) that we can play against.  Since games can always last infinitely long, coinduction is again the right choice:
 
 ```coq
-CoInductive strategy {G : Game} (p : Player) : GameState G -> Type :=
+CoInductive strategy {G : Game} (p : Player)
+  : GameState G -> Type :=
   (* the game is over, there is nothing to do *)
   | atom_strategy : forall b res,
       atomic_res b = Some res -> strategy p b
-  (* if it's your turn, a strategy is a move selection followed by a strategy for the resulting position *)
+  (* if it's your turn, a strategy is a move
+     selection followed by a strategy for the
+     resulting position *)
   | eloise_strategy : forall b,
       to_play b = p -> forall m,
       strategy p (exec_move b m) -> strategy p b
-  (* if it's your opponent's turn, a strategy is a collection of strategies any potentially resulting position *)
+  (* if it's your opponent's turn, a strategy is
+     a collection of strategies any potentially
+     resulting position *)
   | abelard_strategy : forall b,
       to_play b = opp p ->
       (forall m, strategy p (exec_move b m)) ->
@@ -239,11 +256,13 @@ Record TB : Type := {
   (* was the last step taken an Eloise step or Abelard step? *)
   last_step : Step;
 
-  (* collections of positions that have been marked as wins, divided by whose turn it is *)
+  (* collections of positions that have been
+     marked as wins, divided by whose turn it is *)
   white_positions : M (Player * nat);
   black_positions : M (Player * nat);
 
-  (* the results of the last round, divided by whose turn it is *)
+  (* the results of the last round, divided
+     by whose turn it is *)
   last_white_positions : list (GameState G);
   last_black_positions : list (GameState G)
   }.
@@ -260,26 +279,31 @@ Here is the property we used in our proof:
 ```coq
 Record TB_valid (tb : TB) : Type := {
 
-  (* some technical necessity arising from us using a generic map interface *)
+  (* some technical necessity arising from
+     us using a generic map interface *)
   white_good : good (white_positions tb);
   black_good : good (black_positions tb);
 
-  (* all mates below current round are already covered *)
+  (* all mates below current round are
+     already covered *)
   mate_tb : forall {s pl n},
     n < curr tb -> mate pl s n ->
     tb_lookup tb s = Some (pl, n);
 
-  (* if a position s returns (pl,n), then s is mate in n for pl *)
+  (* if a position s returns (pl,n), then
+     s is mate in n for pl *)
   tb_mate : forall {s pl n},
     tb_lookup tb s = Some (pl, n) ->
     mate pl s n;
 
-  (* stored mates are smaller than current round *)
+  (* stored mates are smaller than
+     current round *)
   tb_small : forall {s pl n},
     tb_lookup tb s = Some (pl, n) ->
     n < curr tb;
 
-  (* positions in white/black_positions are white/black to move *)
+  (* positions in white/black_positions
+     are white/black to move *)
   tb_white : forall {s pl n},
     str_lookup s (white_positions tb) = Some (pl, n) ->
     to_play s = White;
@@ -287,12 +311,14 @@ Record TB_valid (tb : TB) : Type := {
     str_lookup s (black_positions tb) = Some (pl, n) ->
     to_play s = Black;
 
-  (* any win not found in the tablebase must have greater depth than current round *)
+  (* any win not found in the tablebase must
+     have greater depth than current round *)
   tb_None : forall {s pl} (w : win pl s),
     tb_lookup tb s = None ->
     curr tb <= depth w;
 
-  (* positions that are mate in curr_round are in last_white/black_positions *)
+  (* positions that are mate in curr_round
+     are in last_white/black_positions *)
   mate_lwp : forall {s pl},
     to_play s = White ->
     mate pl s (curr tb) ->
@@ -302,7 +328,8 @@ Record TB_valid (tb : TB) : Type := {
     mate pl s (curr tb) ->
     In s (last_black_positions tb);
 
-  (* positions that are in last_white/black_positions are mate in curr_round *)
+  (* positions that are in last_white/black_positions
+     are mate in curr_round *)
   lwp_mate : forall {s},
     In s (last_white_positions tb) ->
     mate (step_player (last_step tb) White) s (curr tb);
@@ -314,13 +341,19 @@ Record TB_valid (tb : TB) : Type := {
   lwp_NoDup : NoDup (last_white_positions tb);
   lbp_NoDup : NoDup (last_black_positions tb);
 
-  (* positions in last_white_black_positions are not yet in the tablebase *)
-  lwp_disj : forall s, In s (last_white_positions tb) -> str_lookup s (white_positions tb) = None;
-  lbp_disj : forall s, In s (last_black_positions tb) -> str_lookup s (black_positions tb) = None;
+  (* positions in last_white/black_positions
+     are not yet in the tablebase *)
+  lwp_disj : forall s, In s (last_white_positions tb)
+    -> str_lookup s (white_positions tb) = None;
+  lbp_disj : forall s, In s (last_black_positions tb)
+    -> str_lookup s (black_positions tb) = None;
 
-  (* it is always white/black's turn to play for positions in last_white/black_positions *)
-  lwp_white : forall s, In s (last_white_positions tb) -> to_play s = White;
-  lbp_black : forall s, In s (last_black_positions tb) -> to_play s = Black;
+  (* it is always white/black's turn to play
+     for positions in last_white/black_positions *)
+  lwp_white : forall s, In s (last_white_positions tb)
+    -> to_play s = White;
+  lbp_black : forall s, In s (last_black_positions tb)
+    -> to_play s = Black;
   }.
 ```
 
