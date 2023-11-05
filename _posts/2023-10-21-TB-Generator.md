@@ -99,7 +99,7 @@ Inductive Result : Type :=
   | Draw : Result.
 ```
 
-Therefore, `atomic_res = Some (Win p)` means that player `p` has won (in Chess, this would mean `p` won by checkmate); `atomic_res = Some Draw` means that the game has ended in a draw (in Chess this would be a stalemate); and `atomic_res = None` means that the game is ongoing.
+Therefore, `atomic_res b = Some (Win p)` means that at position `b`, player `p` has won (in Chess, this would mean `p` won by checkmate); `atomic_res b = Some Draw` means that the game has ended in a draw (in Chess this would be a stalemate); and `atomic_res b = None` means that the game is ongoing.
 
 `atomic_res_nil` and  `nil_atomic_res` are perhaps not strictly necessary but are there more for "hygienic" purposes. They say the game ends if and only if there are no legal moves.
 
